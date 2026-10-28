@@ -1,0 +1,978 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>memoQ</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Reem+Kufi:wght@500;700&display=swap">
+<style>
+/* Layout: right-hand navigation rail + working area (RTL); data persists in IndexedDB on the viewer's device. Quiet teal-slate palette, amber reserved for error values. */
+:root{
+  --bg:#eff4f4; --surface:#ffffff; --surface-2:#f5f9f9; --fg:#12232b; --muted:#566b72; --line:#d7e1e3;
+  --accent:#0b6e6e; --accent-fg:#ffffff; --accent-soft:#d9eeed;
+  --warn:#9a5b00; --warn-soft:#fbeed6; --bad:#b42318; --bad-soft:#fbe4e1; --good:#17754a; --good-soft:#dcf1e6;
+  --f-display:'Reem Kufi','IBM Plex Sans Arabic',Tahoma,sans-serif;
+  --f-body:'IBM Plex Sans Arabic',Tahoma,'Segoe UI',sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d1a1f; --surface:#14252b; --surface-2:#192d34; --fg:#e5eef0; --muted:#93a9b0; --line:#27393f;
+  --accent:#4fc3bd; --accent-fg:#06201f; --accent-soft:#16393a;
+  --warn:#f0b35a; --warn-soft:#3a2b12; --bad:#ff8a7d; --bad-soft:#3d1c19; --good:#5fd49a; --good-soft:#12352599;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d1a1f; --surface:#14252b; --surface-2:#192d34; --fg:#e5eef0; --muted:#93a9b0; --line:#27393f;
+  --accent:#4fc3bd; --accent-fg:#06201f; --accent-soft:#16393a;
+  --warn:#f0b35a; --warn-soft:#3a2b12; --bad:#ff8a7d; --bad-soft:#3d1c19; --good:#5fd49a; --good-soft:#12352599;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.7}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;font-weight:700}
+h1{font-size:1.6rem} h2{font-size:1.2rem} h3{font-size:1.05rem}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.gutter{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* login */
+.login{min-height:100vh;display:grid;place-items:center;padding-block:24px}
+.login-card{width:min(440px,100%);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:28px;display:grid;gap:18px}
+.brand{font-family:var(--f-display);font-size:2rem;font-weight:700;letter-spacing:.5px;color:var(--accent);direction:ltr;text-align:right}
+.brand b{color:var(--fg)}
+.field{display:grid;gap:6px}
+.field label{font-weight:500;font-size:.9rem}
+.inp{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:9px 12px}
+.inp:focus{border-color:var(--accent)}
+.btn{background:var(--accent);color:var(--accent-fg);border:1px solid var(--accent);border-radius:6px;padding:8px 16px;font-weight:600}
+.btn:hover{filter:brightness(1.07)}
+.btn.sec{background:transparent;color:var(--fg);border-color:var(--line)}
+.btn.sec:hover{background:var(--surface-2)}
+.btn.sm{padding:4px 10px;font-size:.85rem}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.demo-hint{font-size:.85rem;background:var(--surface-2);border:1px dashed var(--line);border-radius:6px;padding:10px 12px;display:grid;gap:8px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+/* shell */
+.shell{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:100vh}
+.rail{background:var(--surface);border-inline-start:1px solid var(--line);padding:18px 14px;display:flex;flex-direction:column;gap:18px;position:sticky;top:0;height:100vh;align-self:start}
+.rail nav{display:grid;gap:4px}
+.nav-btn{background:none;border:0;text-align:start;padding:9px 12px;border-radius:6px;color:var(--muted);font-weight:500}
+.nav-btn:hover{background:var(--surface-2);color:var(--fg)}
+.nav-btn.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.who{margin-top:auto;font-size:.85rem;display:grid;gap:8px;border-top:1px solid var(--line);padding-top:14px}
+.main{padding-block:24px 48px;display:grid;gap:18px;align-content:start;min-width:0}
+.banner{background:var(--warn-soft);color:var(--warn);border-radius:6px;padding:8px 12px;font-size:.88rem}
+.head{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:end}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;display:grid;gap:12px;min-width:0}
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px}
+.stat .v{font-family:var(--f-display);font-size:1.9rem;font-weight:700;line-height:1.2}
+.stat .l{color:var(--muted);font-size:.85rem}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px}
+.scroll{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;min-width:560px}
+th,td{text-align:start;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:.82rem;color:var(--muted);font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.pill{display:inline-block;padding:1px 10px;border-radius:99px;font-size:.8rem;font-weight:600;white-space:nowrap}
+.p-new{background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+.p-assigned{background:var(--accent-soft);color:var(--accent)}
+.p-done,.p-good{background:var(--good-soft);color:var(--good)}
+.p-mid{background:var(--warn-soft);color:var(--warn)}
+.p-bad{background:var(--bad-soft);color:var(--bad)}
+.bars{display:grid;gap:10px}
+.bar{display:grid;grid-template-columns:minmax(110px,170px) minmax(0,1fr) 54px;gap:10px;align-items:center;font-size:.9rem}
+.bar .t{height:10px;background:var(--surface-2);border-radius:99px;overflow:hidden;border:1px solid var(--line)}
+.bar .t i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.bar.w .t i{background:var(--warn)}
+.empty{padding:28px 12px;text-align:center;color:var(--muted)}
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+.filters .field{min-width:140px}
+.drop{border:1.5px dashed var(--line);border-radius:8px;padding:16px;display:grid;gap:8px;background:var(--surface-2)}
+.cols{display:flex;flex-wrap:wrap;gap:6px}
+.cols span{background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:0 8px;font-size:.82rem}
+
+/* evaluation */
+.evalgrid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:18px}
+.meta{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:.92rem}
+.meta dt{color:var(--muted)} .meta dd{margin:0}
+audio{width:100%}
+.err{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.err:last-child{border-bottom:0}
+.pts{background:var(--warn-soft);color:var(--warn);border-radius:5px;padding:0 8px;font-size:.82rem;font-weight:600;white-space:nowrap}
+.step{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.step button{background:var(--surface-2);border:0;width:32px;height:32px;font-size:1.1rem}
+.step button:hover{background:var(--accent-soft)}
+.step output{min-width:34px;text-align:center;font-weight:600}
+.score{font-family:var(--f-display);font-size:2.6rem;font-weight:700;line-height:1}
+textarea.inp{min-height:84px;resize:vertical}
+.detail td{background:var(--surface-2)}
+.chk{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:.88rem;cursor:pointer}
+.qa{display:grid;gap:4px}
+.btn.bad{background:var(--bad);border-color:var(--bad);color:var(--bg)}
+.btn.sec.badt{color:var(--bad)}
+.ico{display:inline-flex;align-items:center;justify-content:center;padding:4px 8px;position:relative}
+.ico svg{display:block}
+.ico.has{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.ico.has::after{content:"";position:absolute;top:2px;inset-inline-start:2px;width:6px;height:6px;border-radius:99px;background:var(--accent)}
+.banner.ok{background:var(--good-soft);color:var(--good)}
+.notice{display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-radius:6px;padding:8px 12px;font-size:.92rem}
+.notice.danger{background:var(--bad-soft);color:var(--bad)}
+.notice.info{background:var(--accent-soft);color:var(--accent)}
+.askdel{display:inline-flex;gap:6px;align-items:center;white-space:nowrap;font-size:.85rem;color:var(--bad)}
+.tx{display:grid;gap:10px}
+.tx-area{min-height:170px;line-height:1.9;resize:vertical}
+.tx-status{font-size:.88rem;color:var(--muted)}
+.vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0 0 0 0);pointer-events:none}
+#toast{position:fixed;inset-inline:0;bottom:max(18px,env(safe-area-inset-bottom,0px));display:flex;justify-content:center;pointer-events:none;z-index:20}
+#toast span{background:var(--fg);color:var(--bg);padding:8px 16px;border-radius:99px;font-size:.9rem;opacity:0;transition:opacity .2s}
+#toast.show span{opacity:1}
+
+@media (max-width:820px){
+  .shell{grid-template-columns:minmax(0,1fr)}
+  .rail{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;border-inline-start:0;border-bottom:1px solid var(--line);padding:10px max(12px,env(safe-area-inset-left,0px));gap:8px}
+  .rail nav{display:flex;overflow-x:auto;max-width:100%;order:3;width:100%}
+  .nav-btn{white-space:nowrap}
+  .who{margin-top:0;border-top:0;padding-top:0;margin-inline-start:auto;display:flex;align-items:center}
+  .evalgrid{grid-template-columns:minmax(0,1fr)}
+  .bar{grid-template-columns:100px minmax(0,1fr) 44px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div id="root" dir="rtl" lang="ar"></div>
+<div id="toast"><span></span></div>
+<input id="upOne" class="vh" type="file" accept="audio/*" tabindex="-1" aria-hidden="true">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+try{document.documentElement.dir='rtl';document.documentElement.lang='ar'}catch(e){}
+
+/* ---------- بيانات في الذاكرة فقط: تُمسح عند تحديث الصفحة ---------- */
+const USERS={admin:{pass:'1234',role:'admin',name:'المدير'}};
+const NAV={
+  admin:[['calls','المكالمات'],['errors','قيم الأخطاء']]
+};
+const pad=n=>String(n).padStart(2,'0');
+const ymd=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const daysAgo=n=>{const d=new Date();d.setDate(d.getDate()-n);return d};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtTime=t=>new Date(t).toLocaleString('ar-EG',{dateStyle:'short',timeStyle:'short'});
+
+const S={user:null,view:'',calls:[],types:[],evals:{},log:[],sel:new Set(),cur:null,draft:{counts:{},notes:''},auto:true,
+  f:{from:'',to:'',q:''},open:null,statusFilter:'all',sample:false};
+
+function defaultTypes(){return[
+  {id:'t1',name:'عدم الترحيب أو الختام الصحيح',points:5,active:true},
+  {id:'t2',name:'عدم التحقق من هوية العميل',points:10,active:true},
+  {id:'t3',name:'معلومة غير صحيحة للعميل',points:15,active:true},
+  {id:'t4',name:'أسلوب غير لائق أو مقاطعة العميل',points:20,active:true},
+  {id:'t5',name:'عدم حل المشكلة أو التصعيد الخاطئ',points:10,active:true},
+  {id:'t6',name:'إطالة غير مبررة للمكالمة',points:5,active:true}]}
+S.types=defaultTypes();S.rate=1;S.quick=null;S.qd={counts:{}};S.txLang='arabic';S.txModel='Xenova/whisper-base';S.loaded=false;
+
+function loadSample(){
+  const agents=['أحمد سمير','منى عادل','كريم حسن','سارة محمود','يوسف إبراهيم'];
+  const durs=['04:32','06:10','03:45','09:02','05:18','02:57','07:40','04:05','06:51','03:22','08:15','05:44'];
+  const calls=[];
+  for(let i=0;i<12;i++){
+    calls.push({id:'MQ-'+(1001+i),agent:agents[i%5],customer:'010'+(i*7%10)+'***'+(4100+i*37),date:ymd(daysAgo(7-Math.floor(i/2))),duration:durs[i],file:(i%3===1?'call_6400_':'call_')+(1001+i)+'.mp3',direction:(i%3===1?'وارد':'صادر'),audioUrl:'',status:'new'});
+  }
+  [8,9,10].forEach(i=>calls[i].status='assigned');
+  S.calls=calls;
+  const mk=(i,counts,notes,dAgo)=>{
+    const c=calls[i];c.status='done';
+    const errs=Object.entries(counts).map(([id,count])=>{const t=S.types.find(x=>x.id===id);return{id,name:t.name,points:t.points,count}});
+    const score=Math.max(0,100-errs.reduce((s,e)=>s+e.points*e.count,0));
+    S.evals[c.id]={callId:c.id,agent:c.agent,date:ymd(daysAgo(dAgo)),at:daysAgo(dAgo).getTime(),by:'المدير',errors:errs,notes,score};
+  };
+  mk(0,{t1:1},'مكالمة جيدة بشكل عام، الختام ناقص.',5);
+  mk(1,{},'أداء ممتاز والتزام كامل بالنص.',5);
+  mk(2,{t2:1,t6:1},'لم يتحقق من الهوية قبل شرح تفاصيل الحساب.',4);
+  mk(3,{t3:1,t5:1},'أعطى موعد تجديد غير صحيح ولم يصعّد الشكوى.',3);
+  mk(4,{t4:1},'قاطع العميل مرتين أثناء الشرح.',2);
+  mk(5,{t1:1,t6:1},'',1);
+  S.sample=true;
+  addLog('تحميل بيانات تجريبية');
+}
+
+function addLog(action){S.log.unshift({at:Date.now(),user:S.user?S.user.name:'—',action});if(S.log.length>500)S.log.length=500;persist()}
+function toast(m,ms){const t=document.getElementById('toast');t.firstElementChild.textContent=m;t.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove('show'),ms||2600)}
+const pendingCalls=()=>S.calls.filter(c=>c.status==='assigned');
+const scorePill=s=>s>=90?['ممتاز','p-good']:s>=75?['جيد','p-good']:s>=60?['مقبول','p-mid']:['ضعيف','p-bad'];
+const statusPill=s=>s==='done'?['تم التقييم','p-done']:s==='assigned'?['مطلوب مراجعتها','p-assigned']:['جديدة','p-new'];
+
+function evalsFiltered(useQ){
+  const f=S.f;
+  return Object.values(S.evals).filter(e=>(!f.from||e.date>=f.from)&&(!f.to||e.date<=f.to)&&(!useQ||!f.q||(e.agent+' '+e.callId+' '+e.notes).includes(f.q))).sort((a,b)=>b.at-a.at);
+}
+const avg=a=>a.length?Math.round(a.reduce((s,x)=>s+x,0)/a.length):0;
+
+/* ---------- مشغّل مشترك للقائمة ---------- */
+const player=new Audio();let playingId=null;
+function playBtn(c){return`<button class="btn sm" data-act="play" data-play="${esc(c.id)}">${playingId===c.id&&!player.paused?'إيقاف':'تشغيل'}</button>`}
+const fmtSec=t=>{t=Math.max(0,Math.floor(Number.isFinite(t)?t:0));return pad(Math.floor(t/60))+':'+pad(t%60)};
+const timeText=()=>fmtSec(player.currentTime)+' / '+fmtSec(player.duration);
+function playCtl(c){return`<div><div class="row" style="flex-wrap:nowrap;gap:4px">${playBtn(c)}<button class="btn sec sm" data-act="slower">أبطأ</button><span class="num" data-rate style="min-width:36px;text-align:center">${S.rate}×</span><button class="btn sec sm" data-act="faster">أسرع</button>${txBtn(c)}</div><div class="muted num" style="font-size:.8rem" data-time="${esc(c.id)}">${playingId===c.id?timeText():'—'}</div></div>`}
+function setRate(d){const R=[0.5,0.75,1,1.25,1.5,2];let i=R.indexOf(S.rate);i=Math.min(R.length-1,Math.max(0,i+d));S.rate=R[i];player.defaultPlaybackRate=S.rate;player.playbackRate=S.rate;document.querySelectorAll('[data-rate]').forEach(el=>el.textContent=S.rate+'×')}
+player.addEventListener('loadedmetadata',()=>{player.playbackRate=S.rate});
+player.addEventListener('timeupdate',()=>{document.querySelectorAll('[data-time]').forEach(el=>{el.textContent=el.dataset.time===playingId?timeText():'—'})});
+let _rt;function scheduleRender(){clearTimeout(_rt);_rt=setTimeout(()=>{if(S.user&&S.view==='calls')render()},400)}
+function probeDuration(c){
+  if(c.duration||!c.audioUrl||c._probed)return;c._probed=true;
+  const a=new Audio();a.preload='metadata';a.src=c.audioUrl;
+  a.addEventListener('loadedmetadata',()=>{if(Number.isFinite(a.duration)&&!c.duration){c.duration=fmtSec(a.duration);persist();scheduleRender()}});
+}
+function saveQuick(c,errs){
+  const old=S.evals[c.id];
+  const score=Math.max(0,100-errs.reduce((s,x)=>s+x.points*x.count,0));
+  S.evals[c.id]={callId:c.id,agent:c.agent,date:ymd(new Date()),at:Date.now(),by:S.user.name,errors:errs,notes:old?old.notes:'',score};
+  c.status='done';
+  const n=errs.reduce((s,x)=>s+x.count,0);
+  addLog(n?`تسجيل ${n} خطأ للمكالمة ${c.id} بدرجة ${score}`:`تقييم المكالمة ${c.id} بدون أخطاء (الدرجة 100)`);
+}
+function removeEval(c){delete S.evals[c.id];c.status='new';addLog(`إلغاء تقييم المكالمة ${c.id}`)}
+function quickToggle(kind,id,on){
+  const c=S.calls.find(x=>x.id===id);if(!c)return;
+  const e=S.evals[id];
+  if(kind==='ok'){
+    S.quick=null;
+    if(on){saveQuick(c,[]);toast('تم تسجيل المكالمة بدون أخطاء')}
+    else if(e&&!e.errors.length){removeEval(c)}
+  }else{
+    if(on){S.qd={counts:{}};if(e)e.errors.forEach(x=>S.qd.counts[x.id]=x.count);S.quick=id}
+    else{S.quick=null;if(e&&e.errors.length)removeEval(c)}
+  }
+  render();
+}
+function quickPanel(c){
+  const act=S.types.filter(t=>t.active);
+  return`<div><b>اختر نوع الخطأ</b>${act.map(t=>`<div class="err"><span>${esc(t.name)}</span><span class="pts num">−${t.points}</span><span class="step"><button type="button" data-act="qdec" data-t="${t.id}" aria-label="إنقاص">−</button><output id="qc-${t.id}" class="num">${S.qd.counts[t.id]||0}</output><button type="button" data-act="qinc" data-t="${t.id}" aria-label="زيادة">+</button></span></div>`).join('')}
+  <div class="row" style="justify-content:space-between;margin-top:8px"><div>الدرجة: <b class="num" id="qscore">${qScore()}</b></div><div class="row"><button class="btn" data-act="qsave" data-id="${esc(c.id)}">حفظ</button><button class="btn sec" data-act="qcancel">إلغاء</button></div></div></div>`;
+}
+function qScore(){let d=0;S.types.forEach(t=>{d+=(S.qd.counts[t.id]||0)*t.points});return Math.max(0,100-d)}
+function syncPlayBtns(){document.querySelectorAll('[data-play]').forEach(b=>{b.textContent=(b.dataset.play===playingId&&!player.paused)?'إيقاف':'تشغيل'})}
+['play','pause','ended'].forEach(ev=>player.addEventListener(ev,syncPlayBtns));
+function togglePlay(id){
+  const c=S.calls.find(x=>x.id===id);if(!c||!c.audioUrl)return;
+  if(playingId===id&&!player.paused){player.pause();return}
+  if(playingId!==id){player.src=c.audioUrl;playingId=id}
+  player.play().catch(()=>toast('تعذر تشغيل هذا الملف. قد تكون صيغته غير مدعومة في المتصفح.',5000));
+}
+
+/* ---------- التخزين الدائم على الجهاز (IndexedDB) ---------- */
+const DL={save:async({filename,data})=>{const a=document.createElement('a');a.href=URL.createObjectURL(data);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}};
+const DB={db:null,ok:false};
+function idbOpen(){return new Promise((res,rej)=>{
+  const to=setTimeout(()=>rej(new Error('timeout')),4000);
+  try{const r=indexedDB.open('memoq-v1',1);
+    r.onupgradeneeded=()=>{const d=r.result;d.createObjectStore('kv');d.createObjectStore('audio')};
+    r.onsuccess=()=>{clearTimeout(to);res(r.result)};
+    r.onerror=()=>{clearTimeout(to);rej(r.error)};
+    r.onblocked=()=>{clearTimeout(to);rej(new Error('blocked'))};
+  }catch(e){clearTimeout(to);rej(e)}})}
+function idbTx(stores,mode,fn){
+  const t=DB.db.transaction(stores,mode);const r=fn(t);
+  return new Promise((res,rej)=>{t.oncomplete=()=>res(r&&r.result);t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)})}
+function snapshot(){
+  return{v:1,session:S.user?'admin':null,savedAt:Date.now(),
+    calls:S.calls.map(c=>{const{audioUrl,_probed,_blob,_blobSaved,...rest}=c;rest.hasAudio=!!c._blob;return rest}),
+    evals:S.evals,types:S.types,log:S.log.slice(0,300),rate:S.rate,auto:S.auto,sample:S.sample};
+}
+let _pt;
+function persist(){if(!DB.ok||!S.loaded)return;clearTimeout(_pt);_pt=setTimeout(flush,150)}
+async function flush(){
+  if(!DB.ok||!S.loaded)return;
+  clearTimeout(_pt);
+  try{const snap=snapshot();try{localStorage.setItem('memoq-state',JSON.stringify(snap))}catch(e){}await idbTx(['kv'],'readwrite',t=>t.objectStore('kv').put(snap,'state'))}
+  catch(e){S.storeWarn='تعذر حفظ آخر التغييرات.';return}
+  const pend=S.calls.filter(c=>c._blob&&!c._blobSaved);
+  let failed=0;
+  for(const c of pend){
+    try{await idbTx(['audio'],'readwrite',t=>t.objectStore('audio').put({blob:c._blob,name:c._blob.name||c.file||'',type:c._blob.type||''},c.id));c._blobSaved=true}
+    catch(e){c._blobSaved='fail';failed++}
+  }
+  if(failed){S.storeWarn=`تعذر حفظ ${failed} تسجيل بسبب امتلاء مساحة المتصفح. ستحتاج إلى رفعه مرة أخرى بعد تحديث الصفحة.`;if(S.user)render()}
+}
+async function initStore(){
+  try{
+    DB.db=await idbOpen();DB.ok=true;
+    try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
+    let st=await idbTx(['kv'],'readonly',t=>t.objectStore('kv').get('state'));
+    try{const ls=JSON.parse(localStorage.getItem('memoq-state')||'null');if(ls&&(!st||(ls.savedAt||0)>(st.savedAt||0)))st=ls}catch(e){}
+    if(st){
+      S.calls=st.calls||[];S.evals=st.evals||{};
+      S.types=(st.types&&st.types.length)?st.types:defaultTypes();
+      S.log=st.log||[];if(st.session&&USERS[st.session])S.user=USERS[st.session];S.rate=st.rate||1;S.auto=st.auto!==false;S.sample=!!st.sample;
+      player.defaultPlaybackRate=S.rate;
+      for(const c of S.calls){
+        if(!c.hasAudio)continue;
+        try{
+          const a=await idbTx(['audio'],'readonly',t=>t.objectStore('audio').get(c.id));
+          if(a&&a.blob){c._blob=a.blob;c._blobSaved=true;c.audioUrl=URL.createObjectURL(a.blob)}
+        }catch(e){}
+      }
+    }
+  }catch(e){DB.ok=false}
+  S.loaded=true;
+  S.calls.forEach(probeDuration);
+  render();
+}
+function attachAudio(c,f){
+  if(c.audioUrl){try{URL.revokeObjectURL(c.audioUrl)}catch(e){}}
+  c.audioUrl=URL.createObjectURL(f);c._blob=f;c._blobSaved=false;
+}
+window.addEventListener('pagehide',()=>{flush()});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flush()});
+
+/* ---------- حذف المكالمات مع إمكانية التراجع ---------- */
+function finalizeUndo(noRender){
+  if(!S.undo)return;
+  clearTimeout(S.undo.t);
+  S.undo.calls.forEach(c=>{if(c.audioUrl){try{URL.revokeObjectURL(c.audioUrl)}catch(e){}}});
+  S.undo=null;
+  if(!noRender&&S.user&&S.view==='calls')render();
+}
+function deleteCalls(idList){
+  const ids=new Set(idList);
+  const gone=S.calls.filter(c=>ids.has(c.id));
+  if(!gone.length){S.delAsk=null;render();return}
+  finalizeUndo(true);
+  if(ids.has(playingId)){player.pause();playingId=null}
+  if(T.run&&ids.has(T.run.id))stopAutoTx(true);
+  const order=S.calls.map(c=>c.id);
+  const evs={};
+  gone.forEach(c=>{if(S.evals[c.id]){evs[c.id]=S.evals[c.id];delete S.evals[c.id]}});
+  S.calls=S.calls.filter(c=>!ids.has(c.id));
+  ids.forEach(id=>S.sel.delete(id));
+  [['quick'],['openCall'],['txOpen'],['open'],['cur']].forEach(([k])=>{if(ids.has(S[k]))S[k]=null});
+  S.delAsk=null;
+  if(DB.ok)idbTx(['audio'],'readwrite',t=>{ids.forEach(id=>t.objectStore('audio').delete(id))}).catch(()=>{});
+  S.undo={calls:gone,evals:evs,order,t:setTimeout(()=>finalizeUndo(),15000)};
+  addLog(`حذف ${gone.length} مكالمة`+(gone.length===1?` (${gone[0].id})`:''));
+  render();
+}
+function undoDelete(){
+  const u=S.undo;if(!u)return;
+  clearTimeout(u.t);S.undo=null;
+  const have=new Set(S.calls.map(c=>c.id));
+  u.calls.forEach(c=>{if(!have.has(c.id)){if(c._blob)c._blobSaved=false;S.calls.push(c)}});
+  Object.assign(S.evals,u.evals);
+  const ix=new Map(u.order.map((id,i)=>[id,i]));
+  S.calls.sort((a,b)=>(ix.has(a.id)?ix.get(a.id):1e9)-(ix.has(b.id)?ix.get(b.id):1e9));
+  addLog(`التراجع عن حذف ${u.calls.length} مكالمة`);
+  render();toast('تمت استعادة المكالمات');
+}
+
+/* ---------- تحويل المكالمة إلى نص ---------- */
+const SRC=window.SpeechRecognition||window.webkitSpeechRecognition;
+const T={run:null};
+const autoTxSupported=()=>typeof Worker!=='undefined'&&typeof WebAssembly!=='undefined'&&!!(window.AudioContext||window.webkitAudioContext)&&typeof OfflineAudioContext!=='undefined';
+function txBtn(c){
+  const t=!!(c.tx&&c.tx.text);
+  const run=T.run&&T.run.id===c.id;
+  return`<button class="btn sec sm ico ${t||run?'has':''}" data-act="tx" data-id="${esc(c.id)}" title="${t?'عرض نص المكالمة':'تحويل المكالمة إلى نص'}" aria-label="${t?'عرض نص المكالمة':'تحويل المكالمة إلى نص'} ${esc(c.id)}" aria-expanded="${S.txOpen===c.id}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 12h7M9 16h7"/></svg></button>`;
+}
+function txLive(c){return c.tx?c.tx.text:''}
+function txPanel(c){
+  const running=T.run&&T.run.id===c.id;
+  const auto=autoTxSupported()&&c.audioUrl;
+  const text=txLive(c);
+  return`<div class="tx"><div class="row" style="justify-content:space-between"><b>نص المكالمة <span class="muted num" dir="auto">${esc(c.file||"")}</span></b>${c.tx&&c.tx.at?`<span class="muted num" style="font-size:.82rem">آخر تعديل ${fmtTime(c.tx.at)}${c.tx.src==='auto'?' · تحويل تلقائي':c.tx.src==='import'?' · مستورد':''}</span>`:''}</div>
+  <textarea class="inp tx-area" id="txa" data-txa="${esc(c.id)}" dir="auto" ${running?'readonly':''} placeholder="${c.audioUrl?'اضغط «تحويل إلى نص» أو الصق نص المكالمة هنا. أي تعديل يُحفظ تلقائيًا.':'الصق نص المكالمة هنا. أي تعديل يُحفظ تلقائيًا.'}">${esc(text)}</textarea>
+  <div class="tx-status" id="txStatus" role="status">${esc(running?(S.txMsg||'جاري التحويل...'):(S.txMsgFor===c.id?S.txMsg:''))}</div>
+  <div class="row">
+    ${running?`<button class="btn bad sm" data-act="txstop">إيقاف التحويل</button>`
+      :auto?`<button class="btn sm" data-act="txauto" data-id="${esc(c.id)}">تحويل إلى نص</button><select class="inp" style="width:auto;padding:4px 8px" data-txlang aria-label="لغة المكالمة"><option value="arabic" ${S.txLang==='arabic'?'selected':''}>عربي</option><option value="english" ${S.txLang==='english'?'selected':''}>English</option></select><select class="inp" style="width:auto;padding:4px 8px" data-txmodel aria-label="دقة التحويل"><option value="Xenova/whisper-base" ${S.txModel==='Xenova/whisper-base'?'selected':''}>سريع (أخف)</option><option value="Xenova/whisper-small" ${S.txModel==='Xenova/whisper-small'?'selected':''}>أدق (أبطأ وأثقل)</option></select>`
+      :`<span class="tx-status">التحويل إلى نص غير متاح في هذا المتصفح. جرّب Chrome أو Edge حديثًا، أو الصق النص أو استورده من ملف.</span>`}
+    <label class="btn sec sm" style="cursor:pointer;position:relative">استيراد من ملف نصي<input class="vh" type="file" accept=".txt,.srt,.vtt,.md,text/plain" data-txfile="${esc(c.id)}"></label>
+    <button class="btn sec sm" data-act="txcopy" ${text?'':'disabled'}>نسخ</button>
+    <button class="btn sec sm" data-act="txdl" data-id="${esc(c.id)}" ${text?'':'disabled'}>تنزيل TXT</button>
+    <button class="btn sec sm badt" data-act="txdel" data-id="${esc(c.id)}" ${c.tx&&!running?'':'disabled'}>مسح النص</button>
+  </div>
+  ${auto&&!running?`<div class="tx-status">التحويل يتم على جهازك بنموذج Whisper ولا يُرفع الصوت إلى أي مكان. أول مرة يُحمَّل النموذج من الإنترنت (من 80 إلى 250 ميجابايت تقريبًا حسب الدقة) ثم يُحفظ في المتصفح. المكالمة الطويلة قد تستغرق عدة دقائق، فراجع النص بعد انتهائه.</div>`:''}
+  </div>`;
+}
+function txSetStatus(m,id){S.txMsg=m;S.txMsgFor=id||S.txMsgFor;const el=document.getElementById('txStatus');if(el)el.textContent=m}
+function txShowLive(){
+  const r=T.run;if(!r)return;
+  const c=S.calls.find(x=>x.id===r.id);const ta=document.getElementById('txa');
+  if(c&&ta&&ta.dataset.txa===r.id){ta.value=txLive(c);ta.scrollTop=ta.scrollHeight}
+}
+const WHISPER_VER='3.5.2';
+const WORKER_SRC=[
+"import {pipeline,env} from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@"+WHISPER_VER+"';",
+"env.allowLocalModels=false;",
+"const pipes={};",
+"self.onmessage=async e=>{",
+"  const {id,model,audio,language}=e.data;",
+"  try{",
+"    if(!pipes[model]){",
+"      const files={};",
+"      pipes[model]=await pipeline('automatic-speech-recognition',model,{progress_callback:p=>{",
+"        if(p&&p.status==='progress'&&p.file){files[p.file]=p;let l=0,t=0;for(const k in files){l+=files[k].loaded||0;t+=files[k].total||0}self.postMessage({id,type:'progress',pct:t?Math.round(l/t*100):0})}",
+"      }});",
+"    }",
+"    self.postMessage({id,type:'working'});",
+"    const out=await pipes[model](audio,{language,task:'transcribe',chunk_length_s:30,stride_length_s:5});",
+"    self.postMessage({id,type:'done',text:(out.text||'').trim()});",
+"  }catch(err){self.postMessage({id,type:'error',message:String((err&&err.message)||err)})}",
+"};"].join('\n');
+let _wk=null;
+function getWorker(){if(_wk)return _wk;const url=URL.createObjectURL(new Blob([WORKER_SRC],{type:'text/javascript'}));_wk=new Worker(url,{type:'module'});return _wk}
+function killWorker(){if(_wk){try{_wk.terminate()}catch(e){}_wk=null}}
+async function decode16k(blob){
+  const buf=await blob.arrayBuffer();
+  const AC=window.AudioContext||window.webkitAudioContext;
+  const ctx=new AC();
+  let ab;try{ab=await ctx.decodeAudioData(buf)}finally{try{ctx.close()}catch(e){}}
+  const off=new OfflineAudioContext(1,Math.max(1,Math.ceil(ab.duration*16000)),16000);
+  const s=off.createBufferSource();s.buffer=ab;s.connect(off.destination);s.start();
+  const out=await off.startRendering();
+  return new Float32Array(out.getChannelData(0));
+}
+function stopAutoTx(silent){
+  const r=T.run;if(!r)return;
+  r.stopping=true;killWorker();T.run=null;
+  if(!silent){S.txMsgFor=r.id;S.txMsg='تم إيقاف التحويل.';render()}
+}
+async function startAutoTx(id){
+  const c=S.calls.find(x=>x.id===id);
+  if(!c||!c._blob||!autoTxSupported())return;
+  stopAutoTx(true);
+  const run={id,stopping:false};T.run=run;S.txMsgFor=id;S.txMsg='جاري قراءة ملف الصوت...';render();
+  const fail=m=>{if(T.run!==run)return;killWorker();T.run=null;S.txMsg=m;S.txMsgFor=id;render()};
+  let audio;
+  try{audio=await decode16k(c._blob)}catch(e){fail('تعذر قراءة هذا الملف الصوتي. قد تكون صيغته غير مدعومة في المتصفح.');return}
+  if(T.run!==run)return;
+  let w;
+  try{w=getWorker()}catch(e){fail('هذا المتصفح لا يدعم تشغيل التحويل. جرّب Chrome أو Edge حديثًا.');return}
+  w.onerror=()=>fail('تعذر تحميل نموذج التحويل. تحقق من الاتصال بالإنترنت، ومن أن الصفحة مفتوحة من رابط https وليس من ملف على الجهاز.');
+  w.onmessage=ev=>{
+    const m=ev.data;if(T.run!==run||m.id!==id)return;
+    if(m.type==='progress')txSetStatus('جاري تحميل النموذج لأول مرة '+m.pct+'%',id);
+    else if(m.type==='working')txSetStatus('جاري تحويل الصوت إلى نص. قد يستغرق ذلك عدة دقائق...',id);
+    else if(m.type==='done'){
+      T.run=null;S.txMsgFor=id;
+      if(m.text){c.tx={text:m.text,at:Date.now(),src:'auto'};addLog('تحويل المكالمة '+c.id+' إلى نص');S.txMsg='تم حفظ النص. راجعه وعدّل ما يلزم.'}
+      else S.txMsg='لم يُكتشف كلام في هذا التسجيل.';
+      render();
+    }
+    else if(m.type==='error')fail('تعذر التحويل: '+m.message);
+  };
+  txSetStatus('جاري تجهيز النموذج...',id);
+  w.postMessage({id,model:S.txModel,audio,language:S.txLang},[audio.buffer]);
+}
+function cleanSubtitle(s){
+  return String(s).replace(/^﻿/,'').replace(/^WEBVTT.*$/m,'')
+    .split(/\r?\n/).filter(l=>l.trim()&&!/^\d+$/.test(l.trim())&&!/^\d{1,2}:\d{2}(:\d{2})?[.,]\d{1,3}\s*-->/.test(l.trim())).join('\n').trim();
+}
+
+/* ---------- العرض ---------- */
+const root=document.getElementById('root');
+
+function render(){
+  if(!S.user){root.innerHTML=loginView();return}
+  const items=NAV[S.user.role];
+  if(!items.some(i=>i[0]===S.view))S.view=items[0][0];
+  const body=({dash:dashView,calls:callsView,results:resultsView,agents:agentsView,errors:errorsView,log:logView,tasks:tasksView,eval:evalView,mine:mineView})[S.view]();
+  root.innerHTML=`<div class="shell">
+    <aside class="rail">
+      <div class="brand">memo<b>Q</b></div>
+      <nav>${items.map(([k,l])=>`<button class="nav-btn ${S.view===k?'on':''}" data-act="nav" data-v="${k}">${l}</button>`).join('')}</nav>
+      <div class="who"><span>${esc(S.user.name)}</span><button class="btn sec sm" data-act="logout">تسجيل الخروج</button></div>
+    </aside>
+    <main class="main gutter">
+      ${DB.ok?`<div class="banner ok">المكالمات والتسجيلات والتقييمات محفوظة على هذا الجهاز وفي هذا المتصفح، وتبقى بعد تحديث الصفحة. لا تُرفع إلى أي مكان.${S.storeWarn?' '+esc(S.storeWarn):''}</div>`:`<div class="banner">التخزين غير متاح في هذه الجلسة، لذلك لن تبقى البيانات بعد تحديث الصفحة أو إغلاقها.</div>`}
+      ${body}
+    </main></div>`;
+  afterRender();
+}
+
+function loginView(){return`<div class="login gutter"><form class="login-card" id="loginForm">
+  <div><div class="brand">memo<b>Q</b></div><div class="muted">إدارة ومراقبة جودة مكالمات خدمة العملاء</div></div>
+  <div class="field"><label for="u">اسم المستخدم</label><input class="inp" id="u" autocomplete="username" dir="ltr" required></div>
+  <div class="field"><label for="p">كلمة المرور</label><input class="inp" id="p" type="password" autocomplete="current-password" dir="ltr" required></div>
+  <div id="loginErr" class="muted" role="alert" style="color:var(--bad)"></div>
+  <button class="btn" type="submit">دخول</button>
+</form></div>`}
+
+function dateFilter(withQ){return`<div class="filters">
+  <div class="field"><label for="ff">من تاريخ</label><input class="inp" type="date" id="ff" value="${S.f.from}" data-f="from"></div>
+  <div class="field"><label for="ft">إلى تاريخ</label><input class="inp" type="date" id="ft" value="${S.f.to}" data-f="to"></div>
+  ${withQ?`<div class="field" style="flex:1"><label for="fq">بحث (موظف، رقم مكالمة، ملاحظة)</label><input class="inp" id="fq" value="${esc(S.f.q)}" data-f="q"></div>`:''}
+  <button class="btn sec" data-act="clearf">مسح الفترة</button></div>`}
+
+function dashView(){
+  const ev=evalsFiltered(false);
+  const errTotal=ev.reduce((s,e)=>s+e.errors.reduce((a,x)=>a+x.count,0),0);
+  const byType={};ev.forEach(e=>e.errors.forEach(x=>byType[x.name]=(byType[x.name]||0)+x.count));
+  const types=Object.entries(byType).sort((a,b)=>b[1]-a[1]);
+  const max=Math.max(1,...types.map(t=>t[1]));
+  const ag={};ev.forEach(e=>(ag[e.agent||'غير محدد']=ag[e.agent||'غير محدد']||[]).push(e.score));
+  const agl=Object.entries(ag).map(([n,a])=>[n,avg(a)]).sort((a,b)=>a[1]-b[1]);
+  const notes=ev.filter(e=>e.notes).slice(0,4);
+  return`<div class="head"><div><h1>لوحة التحكم</h1><div class="muted">ملخص نتائج مراجعة المكالمات</div></div></div>
+  <div class="panel">${dateFilter(false)}</div>
+  <div class="grid4">
+    <div class="stat"><div class="v num">${ev.length}</div><div class="l">مكالمات تمت مراجعتها</div></div>
+    <div class="stat"><div class="v num">${S.calls.filter(c=>c.status!=='done').length}</div><div class="l">مكالمات بلا تقييم</div></div>
+    <div class="stat"><div class="v num">${ev.length?avg(ev.map(e=>e.score)):'—'}</div><div class="l">متوسط درجة الجودة</div></div>
+    <div class="stat"><div class="v num">${errTotal}</div><div class="l">أخطاء مسجلة</div></div>
+  </div>
+  <div class="two">
+    <section class="panel"><h2>الأخطاء الأكثر تكرارًا</h2>
+      ${types.length?`<div class="bars">${types.map(([n,c])=>`<div class="bar w"><span>${esc(n)}</span><div class="t"><i style="width:${c/max*100}%"></i></div><span class="num">${c}</span></div>`).join('')}</div>`:'<div class="empty">لا توجد أخطاء مسجلة في هذه الفترة</div>'}</section>
+    <section class="panel"><h2>متوسط الدرجة لكل موظف</h2>
+      ${agl.length?`<div class="bars">${agl.map(([n,s])=>`<div class="bar"><span>${esc(n)}</span><div class="t"><i style="width:${s}%"></i></div><span class="num">${s}</span></div>`).join('')}</div>`:'<div class="empty">لا توجد تقييمات في هذه الفترة</div>'}</section>
+  </div>
+  <section class="panel"><h2>آخر الملاحظات على المكالمات</h2>
+    ${notes.length?notes.map(e=>`<div><b>${esc(e.agent)}</b> <span class="muted num">· ${esc(e.callId)} · ${e.date}</span><div>${esc(e.notes)}</div></div>`).join(''):'<div class="empty">لا توجد ملاحظات</div>'}</section>`}
+
+function callDetail(c){
+  const sl=statusPill(c.status)[0];const e=S.evals[c.id];
+  let h=`<dl class="meta"><dt>الموظف</dt><dd><input class="inp" style="max-width:240px;padding:3px 8px" value="${esc(c.agent)}" data-ca="${esc(c.id)}" placeholder="اكتب اسم الموظف" aria-label="اسم الموظف"></dd><dt>العميل</dt><dd class="num">${esc(c.customer)||'—'}</dd><dt>نوع المكالمة</dt><dd>${esc(c.direction)||'—'}</dd><dt>تاريخ المكالمة</dt><dd class="num">${esc(c.date)||'—'}</dd><dt>المدة</dt><dd class="num">${esc(c.duration)||'—'}</dd><dt>ملف التسجيل</dt><dd class="num">${esc(c.file)||'—'} ${c.audioUrl?'(مرتبط)':'(غير مرتبط)'}</dd><dt>الحالة</dt><dd>${sl}</dd></dl>`;
+  if(e){
+    h+=`<div style="margin-top:10px"><b>نتيجة التقييم:</b> <span class="num">${e.score}</span> · ${scorePill(e.score)[0]}</div>`
+      +(e.errors.length?e.errors.map(x=>`<div>${esc(x.name)} <span class="muted num">× ${x.count}</span> <span class="pts num">−${x.points*x.count}</span></div>`).join(''):'<div>لا توجد أخطاء</div>')
+      +`<div><b>الملاحظات:</b> ${esc(e.notes)||'<span class="muted">لا توجد</span>'}</div><div class="muted" style="font-size:.82rem">قيّمها ${esc(e.by)} · ${fmtTime(e.at)}</div>`;
+  }
+  return h}
+
+function callsView(){
+  const list=S.calls.filter(c=>S.statusFilter==='all'||c.status===S.statusFilter);
+  const newCount=S.calls.filter(c=>c.status==='new').length;
+  const selNew=[...S.sel].filter(id=>{const x=S.calls.find(y=>y.id===id);return x&&x.status==='new'}).length;
+  const allSel=list.length>0&&list.every(c=>S.sel.has(c.id));
+  return`<div class="head"><div><h1>المكالمات</h1><div class="muted">أضف التسجيلات الصوتية ثم قيّم كل مكالمة بسرعة</div></div></div>
+  <section class="panel"><h2>إضافة التسجيلات</h2>
+    <div class="drop">
+      <div>اختر ملفات صوتية وسيُنشأ لكل ملف مكالمة باسمه. الملفات تبقى على جهازك ولا تُرفع إلى أي مكان. إن كان اسم الملف يحتوي رقم موبايل العميل (مثل 01012345678_مكالمة.mp3) يُحفظ في خانة العميل، وتاريخ المكالمة يؤخذ من اسم الملف إن احتوى تاريخًا (مثل 20261027)، وإلا من تاريخ الملف على جهازك.</div>
+      <div class="row">
+        <label class="btn" style="cursor:pointer;position:relative">اختيار ملفات صوتية<input id="aud" class="vh" type="file" accept="audio/*,.mp3,.wav,.m4a,.ogg,.aac,.amr,.wma,.opus,.flac" multiple></label>
+      </div>
+      ${S.msg?`<div class="pill p-assigned" style="white-space:normal">${esc(S.msg)}</div>`:''}
+    </div></section>
+  <section class="panel">
+    <div class="filters">
+      <div class="field"><label for="sf">الحالة</label><select class="inp" id="sf" data-sf>
+        ${[['all','الكل'],['new','جديدة'],['done','تم التقييم']].map(([v,l])=>`<option value="${v}" ${S.statusFilter===v?'selected':''}>${l}</option>`).join('')}</select></div>
+      <button class="btn sec" data-act="selall" ${list.length?'':'disabled'}>${allSel?'إلغاء تحديد الكل':'تحديد كل المعروض'}</button>
+      <button class="btn sec" data-act="export" data-scope="calls">تصدير إلى Excel</button>
+      <button class="btn sec badt" data-act="delsel" ${S.sel.size?'':'disabled'}>حذف المحدد (${S.sel.size})</button>
+      <button class="btn sec badt" data-act="delall" ${S.calls.length?'':'disabled'}>مسح كل المكالمات</button>
+    </div>
+    ${S.undo?`<div class="notice info" role="status"><span>تم حذف ${S.undo.calls.length} مكالمة.</span><button class="btn sm" data-act="undo">تراجع</button></div>`:''}
+    ${(S.delAsk==='sel'||S.delAsk==='all')?`<div class="notice danger" role="alert"><span>سيتم حذف ${S.delAsk==='all'?S.calls.length:S.sel.size} مكالمة مع تسجيلاتها وتقييماتها ونصوصها. ستظهر لك خانة «تراجع» بعد الحذف لبضع ثوانٍ.</span><button class="btn bad sm" data-act="delgo">نعم، احذف</button><button class="btn sec sm" data-act="delno">إلغاء</button></div>`:''}
+    ${list.length?`<div class="scroll"><table><thead><tr><th></th><th>الموظف</th><th>العميل</th><th>التاريخ</th><th>النوع</th><th>المدة</th><th>التسجيل</th><th>التقييم السريع</th><th>الحالة</th><th></th></tr></thead><tbody>
+      ${list.map(c=>{const[sl,sc]=statusPill(c.status);return`<tr>
+        <td><input type="checkbox" data-sel="${esc(c.id)}" ${S.sel.has(c.id)?'checked':''} aria-label="تحديد ${esc(c.id)}"></td>
+        <td><input class="inp" style="min-width:130px;padding:4px 8px" value="${esc(c.agent)}" data-ca="${esc(c.id)}" placeholder="اكتب اسم الموظف" aria-label="اسم الموظف"></td><td><input class="inp num" dir="ltr" style="min-width:130px;padding:4px 8px" value="${esc(c.customer)}" data-cc="${esc(c.id)}" placeholder="رقم العميل" aria-label="رقم العميل"></td><td><input class="inp num" type="date" value="${/^\d{4}-\d{2}-\d{2}$/.test(c.date)?c.date:''}" data-cd="${esc(c.id)}" style="min-width:140px;padding:4px 8px" aria-label="تاريخ المكالمة"></td>
+        <td><select class="inp" style="padding:4px 8px" data-cdir="${esc(c.id)}" aria-label="نوع المكالمة"><option value="صادر" ${c.direction!=='وارد'?'selected':''}>صادر</option><option value="وارد" ${c.direction==='وارد'?'selected':''}>وارد</option></select></td><td class="num">${esc(c.duration)}</td>
+        <td>${c.audioUrl?playCtl(c):`<div class="row" style="flex-wrap:nowrap"><span class="muted num">${esc(c.file||'غير مرتبط')}</span>${c.tx?txBtn(c):''}</div>`}</td>
+        <td><div class="qa"><label class="chk"><input type="checkbox" data-q="ok" data-id="${esc(c.id)}" ${(S.evals[c.id]&&!S.evals[c.id].errors.length&&S.quick!==c.id)?'checked':''}> لا يوجد خطأ</label><label class="chk"><input type="checkbox" data-q="err" data-id="${esc(c.id)}" ${((S.evals[c.id]&&S.evals[c.id].errors.length)||S.quick===c.id)?'checked':''}> يوجد خطأ</label></div></td>
+        <td><span class="pill ${sc}">${sl}</span></td>
+        <td><div class="row" style="flex-wrap:nowrap">${S.delAsk===c.id?`<span class="askdel" role="alert">حذف المكالمة؟ <button class="btn bad sm" data-act="delgo">نعم</button><button class="btn sec sm" data-act="delno">لا</button></span>`:`<button class="btn sec sm ico badt" data-act="delrow" data-id="${esc(c.id)}" title="حذف المكالمة" aria-label="حذف المكالمة ${esc(c.id)}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v5M14 11v5"/></svg></button>`}</div></td></tr>
+        ${S.txOpen===c.id?`<tr class="detail"><td colspan="10">${txPanel(c)}</td></tr>`:''}
+        ${S.quick===c.id?`<tr class="detail"><td colspan="10">${quickPanel(c)}</td></tr>`:''}
+        `}).join('')}</tbody></table></div>`
+      :'<div class="empty">لا توجد مكالمات بعد. اختر ملفات صوتية من الأعلى لإضافتها.</div>'}
+  </section>`}
+
+function resultsTable(list,mgr){
+  if(!list.length)return'<div class="empty">لا توجد نتائج مطابقة</div>';
+  return`<div class="scroll"><table><thead><tr><th>المكالمة</th><th>الموظف</th><th>تاريخ التقييم</th><th>الأخطاء</th><th>الدرجة</th><th></th></tr></thead><tbody>
+  ${list.map(e=>{const[l,c]=scorePill(e.score);const n=e.errors.reduce((a,x)=>a+x.count,0);return`<tr>
+    <td class="num">${esc(e.callId)}</td><td>${esc(e.agent)||'—'}</td><td class="num">${e.date}</td><td class="num">${n}</td>
+    <td><span class="pill ${c}">${e.score} · ${l}</span></td>
+    <td><button class="btn sec sm" data-act="toggle" data-id="${esc(e.callId)}">${S.open===e.callId?'إخفاء':'التفاصيل'}</button></td></tr>
+    ${S.open===e.callId?`<tr class="detail"><td colspan="6">
+      ${e.errors.length?e.errors.map(x=>`<div>${esc(x.name)} <span class="muted num">× ${x.count}</span> <span class="pts num">−${x.points*x.count}</span></div>`).join(''):'<div>لا توجد أخطاء</div>'}
+      <div style="margin-top:6px"><b>الملاحظات:</b> ${esc(e.notes)||'<span class="muted">لا توجد</span>'}</div>
+      <div class="muted" style="font-size:.82rem">قيّمها ${esc(e.by)} · ${fmtTime(e.at)}</div></td></tr>`:''}`}).join('')}
+  </tbody></table></div>`}
+
+function resultsView(){
+  return`<div class="head"><div><h1>النتائج</h1><div class="muted">البحث في التقييمات السابقة وتحديد فترة العرض</div></div>
+    <div class="row"><button class="btn" data-act="export" data-scope="results">تصدير إلى Excel</button><button class="btn sec" data-act="recalc">إعادة احتساب الدرجات بالقيم الحالية</button></div></div>
+  <section class="panel">${dateFilter(true)}<div id="resBox">${resultsTable(evalsFiltered(true),true)}</div></section>`}
+
+function agentsView(){
+  const ev=evalsFiltered(false);const g={};
+  ev.forEach(e=>{const k=e.agent||'غير محدد';const a=g[k]=g[k]||{n:0,s:[],err:0};a.n++;a.s.push(e.score);a.err+=e.errors.reduce((x,y)=>x+y.count,0)});
+  const rows=Object.entries(g).sort((a,b)=>avg(a[1].s)-avg(b[1].s));
+  return`<div class="head"><div><h1>أداء الموظفين</h1><div class="muted">معدل الأخطاء ومتوسط الدرجة لكل موظف</div></div></div>
+  <section class="panel">${dateFilter(false)}
+  ${rows.length?`<div class="scroll"><table><thead><tr><th>الموظف</th><th>مكالمات تمت مراجعتها</th><th>متوسط الدرجة</th><th>إجمالي الأخطاء</th><th>معدل الأخطاء لكل مكالمة</th></tr></thead><tbody>
+  ${rows.map(([n,a])=>{const m=avg(a.s);const[l,c]=scorePill(m);return`<tr><td>${esc(n)}</td><td class="num">${a.n}</td><td><span class="pill ${c}">${m} · ${l}</span></td><td class="num">${a.err}</td><td class="num">${(a.err/a.n).toFixed(1)}</td></tr>`}).join('')}</tbody></table></div>`:'<div class="empty">لا توجد تقييمات في هذه الفترة</div>'}</section>`}
+
+function errorsView(){
+  return`<div class="head"><div><h1>قيم الأخطاء</h1><div class="muted">يحدد المدير عدد النقاط التي تُخصم عن كل خطأ. الدرجة النهائية = 100 ناقص مجموع النقاط المخصومة.</div></div></div>
+  <div class="banner">الأسماء والقيم الموجودة الآن أمثلة للتجربة. عدّلها كما تريد.</div>
+  <section class="panel"><div class="scroll"><table><thead><tr><th>اسم الخطأ</th><th>النقاط المخصومة</th><th>مفعّل</th></tr></thead><tbody>
+  ${S.types.map(t=>`<tr>
+    <td><input class="inp" value="${esc(t.name)}" data-tn="${t.id}" aria-label="اسم الخطأ"></td>
+    <td><input class="inp num" type="number" min="0" max="100" value="${t.points}" data-tp="${t.id}" style="max-width:100px" aria-label="النقاط"></td>
+    <td><input type="checkbox" ${t.active?'checked':''} data-ta="${t.id}" aria-label="مفعّل"></td></tr>`).join('')}
+  </tbody></table></div>
+  <form class="row" id="newType"><input class="inp" id="ntName" placeholder="اسم خطأ جديد" style="flex:1;min-width:200px" required>
+    <input class="inp num" id="ntPts" type="number" min="0" max="100" value="5" style="max-width:100px" aria-label="النقاط" required>
+    <button class="btn" type="submit">إضافة خطأ</button></form>
+  <div class="muted" style="font-size:.85rem">التعديل يسري على التقييمات الجديدة. لتطبيق القيم الجديدة على النتائج السابقة استخدم «إعادة احتساب» في صفحة النتائج.</div></section>`}
+
+function logView(){
+  return`<div class="head"><div><h1>سجل العمليات</h1><div class="muted">كل ما جرى داخل البرنامج في هذه الجلسة</div></div></div>
+  <section class="panel">${S.log.length?`<div class="scroll"><table><thead><tr><th>الوقت</th><th>المستخدم</th><th>العملية</th></tr></thead><tbody>
+  ${S.log.map(l=>`<tr><td class="num" style="white-space:nowrap">${fmtTime(l.at)}</td><td>${esc(l.user)}</td><td>${esc(l.action)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">لا توجد عمليات مسجلة</div>'}</section>`}
+
+function tasksView(){
+  const p=pendingCalls();
+  return`<div class="head"><div><h1>مهامي</h1><div class="muted">المكالمات التي كلّفك المدير بمراجعتها</div></div>
+    ${p.length?`<button class="btn" data-act="startfirst">ابدأ بأول مكالمة</button>`:''}</div>
+  <section class="panel">${p.length?`<div class="scroll"><table><thead><tr><th>رقم المكالمة</th><th>الموظف</th><th>التاريخ</th><th>المدة</th><th>التسجيل</th><th></th></tr></thead><tbody>
+  ${p.map(c=>`<tr><td class="num">${esc(c.id)}</td><td>${esc(c.agent)}</td><td class="num">${esc(c.date)}</td><td class="num">${esc(c.duration)}</td>
+    <td>${c.audioUrl?'<span class="pill p-done">مرتبط</span>':'<span class="muted">غير مرتبط</span>'}</td>
+    <td><div class="row" style="flex-wrap:nowrap"><button class="btn sm" data-act="evalcall" data-id="${esc(c.id)}">تقييم</button><button class="btn sec sm" data-act="cdet" data-id="${esc(c.id)}">${S.openCall===c.id?'إخفاء':'التفاصيل'}</button><label class="btn sec sm" style="cursor:pointer;position:relative">${c.audioUrl?'استبدال التسجيل':'رفع تسجيل'}<input class="vh" type="file" accept="audio/*,.mp3,.wav,.m4a,.ogg,.aac,.amr,.wma,.opus,.flac" data-up="${esc(c.id)}"></label></div></td></tr>
+    ${S.openCall===c.id?`<tr class="detail"><td colspan="6">${callDetail(c)}</td></tr>`:''}`).join('')}</tbody></table></div>`
+    :'<div class="empty">لا توجد مكالمات مطلوب مراجعتها الآن</div>'}</section>`}
+
+function currentCall(){
+  const p=pendingCalls();
+  if(!p.length)return null;
+  let c=p.find(x=>x.id===S.cur);
+  if(!c){c=p[0];S.cur=c.id;S.draft={counts:{},notes:''}}
+  return c;
+}
+function calcScore(){
+  let d=0;S.types.forEach(t=>{d+=(S.draft.counts[t.id]||0)*t.points});return Math.max(0,100-d)
+}
+function evalView(){
+  const c=currentCall();
+  if(!c)return`<div class="head"><div><h1>التقييم</h1></div></div><section class="panel"><div class="empty">لا توجد مكالمات مطلوب مراجعتها الآن. حدد مكالمات من صفحة المكالمات، أو اضغط «تقييم» بجانب أي مكالمة.</div></section>`;
+  const p=pendingCalls();const idx=p.findIndex(x=>x.id===c.id);
+  const sc=calcScore();
+  return`<div class="head"><div><h1>تقييم مكالمة <span class="num">${esc(c.id)}</span></h1><div class="muted num">${idx+1} من ${p.length} مكالمات مطلوبة</div></div>
+    <div class="row"><button class="btn sec sm" data-act="prev" ${idx<=0?'disabled':''}>السابقة</button><button class="btn sec sm" data-act="next" ${idx>=p.length-1?'disabled':''}>التالية</button></div></div>
+  <div class="evalgrid">
+    <section class="panel"><h2>بيانات المكالمة</h2>
+      <dl class="meta"><dt>الموظف</dt><dd>${esc(c.agent)||'—'}</dd><dt>العميل</dt><dd class="num">${esc(c.customer)}</dd><dt>التاريخ</dt><dd class="num">${esc(c.date)}</dd><dt>المدة</dt><dd class="num">${esc(c.duration)}</dd><dt>ملف التسجيل</dt><dd class="num">${esc(c.file||'—')}</dd></dl>
+      ${c.audioUrl?`<audio id="player" controls src="${c.audioUrl}"></audio>`:`<div class="drop"><div>لا يوجد تسجيل مرتبط بهذه المكالمة. اختر الملف الصوتي من جهازك.</div>
+        <div><label class="btn" style="cursor:pointer;position:relative">رفع ملف التسجيل<input class="vh" type="file" accept="audio/*,.mp3,.wav,.m4a,.ogg,.aac,.amr,.wma,.opus,.flac" data-up="${esc(c.id)}"></label></div></div>`}
+      <label class="row" style="gap:8px;font-size:.9rem"><input type="checkbox" id="autoNext" ${S.auto?'checked':''}> الانتقال وتشغيل التسجيل التالي تلقائيًا بعد حفظ التقييم</label>
+    </section>
+    <section class="panel"><h2>الأخطاء والملاحظات</h2>
+      <div>${S.types.filter(t=>t.active).map(t=>`<div class="err"><span>${esc(t.name)}</span><span class="pts num">−${t.points}</span>
+        <span class="step"><button type="button" data-act="dec" data-t="${t.id}" aria-label="إنقاص">−</button><output id="cnt-${t.id}" class="num">${S.draft.counts[t.id]||0}</output><button type="button" data-act="inc" data-t="${t.id}" aria-label="زيادة">+</button></span></div>`).join('')}</div>
+      <div class="field"><label for="notes">ملاحظات</label><textarea class="inp" id="notes">${esc(S.draft.notes)}</textarea></div>
+      <div class="row" style="justify-content:space-between"><div><div class="muted" style="font-size:.85rem">الدرجة</div><div class="score num" id="score">${sc}</div></div>
+        <button class="btn" data-act="save">حفظ التقييم</button></div>
+    </section>
+  </div>`}
+
+function mineView(){
+  const list=Object.values(S.evals).sort((a,b)=>b.at-a.at);
+  return`<div class="head"><div><h1>نتائجي</h1><div class="muted">التقييمات التي أنجزتها في هذه الجلسة</div></div></div>
+  <section class="panel">${resultsTable(list,false)}</section>`}
+
+/* ---------- ما بعد العرض ---------- */
+function afterRender(){
+  if(S.view==='eval'&&!player.paused)player.pause();
+  const pl=document.getElementById('player');
+  if(pl&&S.playNext){S.playNext=false;pl.play().catch(()=>{})}
+}
+function updateScore(){const el=document.getElementById('score');if(el)el.textContent=calcScore()}
+
+/* ---------- الأحداث ---------- */
+root.addEventListener('submit',e=>{
+  e.preventDefault();
+  if(e.target.id==='loginForm'){
+    const u=document.getElementById('u').value.trim().toLowerCase(),p=document.getElementById('p').value;
+    const acc=USERS[u];
+    if(!acc||acc.pass!==p){document.getElementById('loginErr').textContent='اسم المستخدم أو كلمة المرور غير صحيحة. تأكد من الكتابة وحاول مرة أخرى.';return}
+    S.user=acc;S.view='';addLog('تسجيل دخول');render();
+  }
+  if(e.target.id==='newType'){
+    const n=document.getElementById('ntName').value.trim(),p=Number(document.getElementById('ntPts').value);
+    if(!n)return;
+    S.types.push({id:'t'+Date.now(),name:n,points:p,active:true});addLog(`إضافة نوع خطأ «${n}» بقيمة ${p}`);render();toast('تمت إضافة الخطأ');
+  }
+});
+
+root.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');if(!b)return;
+  const a=b.dataset.act;
+  if(a==='fill'){document.getElementById('u').value=b.dataset.u;document.getElementById('p').value='1234';return}
+  if(a==='nav'){S.view=b.dataset.v;S.open=null;render();return}
+  if(a==='logout'){addLog('تسجيل خروج');S.user=null;render();return}
+  if(a==='clearf'){S.f.from='';S.f.to='';render();return}
+  if(a==='export'){exportXlsx(b.dataset.scope);return}
+  if(a==='play'){togglePlay(b.dataset.play);return}
+  if(a==='slower'){setRate(-1);return}
+  if(a==='faster'){setRate(1);return}
+  if(a==='qinc'||a==='qdec'){
+    const id=b.dataset.t;S.qd.counts[id]=Math.max(0,(S.qd.counts[id]||0)+(a==='qinc'?1:-1));
+    document.getElementById('qc-'+id).textContent=S.qd.counts[id];document.getElementById('qscore').textContent=qScore();return}
+  if(a==='qcancel'){S.quick=null;render();return}
+  if(a==='selall'){
+    const list=S.calls.filter(c=>S.statusFilter==='all'||c.status===S.statusFilter);
+    if(list.length&&list.every(c=>S.sel.has(c.id)))list.forEach(c=>S.sel.delete(c.id));else list.forEach(c=>S.sel.add(c.id));
+    render();return}
+  if(a==='delrow'){S.delAsk=b.dataset.id;render();return}
+  if(a==='delsel'){if(S.sel.size){S.delAsk='sel';render()}return}
+  if(a==='delall'){if(S.calls.length){S.delAsk='all';render()}return}
+  if(a==='delno'){S.delAsk=null;render();return}
+  if(a==='delgo'){const k=S.delAsk;if(k==='all')deleteCalls(S.calls.map(c=>c.id));else if(k==='sel')deleteCalls([...S.sel]);else if(k)deleteCalls([k]);return}
+  if(a==='undo'){undoDelete();return}
+  if(a==='tx'){S.txOpen=S.txOpen===b.dataset.id?null:b.dataset.id;if(S.txOpen!==b.dataset.id&&T.run&&T.run.id===b.dataset.id){}render();return}
+  if(a==='txauto'){startAutoTx(b.dataset.id);return}
+  if(a==='txstop'){stopAutoTx(false);return}
+  if(a==='txcopy'){
+    const ta=document.getElementById('txa');if(!ta||!ta.value)return;
+    (navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(ta.value):Promise.reject()).then(()=>toast('تم نسخ النص')).catch(()=>{ta.removeAttribute('readonly');ta.focus();ta.select();toast('حدد النص وانسخه يدويًا')});return}
+  if(a==='txdl'){
+    const c=S.calls.find(x=>x.id===b.dataset.id);const ta=document.getElementById('txa');
+    const text=(ta&&ta.value)||(c&&c.tx&&c.tx.text)||'';if(!c||!text)return;
+    (async()=>{
+      let dl=null;try{dl=DL}catch(e){dl=null}
+      if(!dl){toast('تعذر التنزيل. انسخ النص بدلًا من ذلك.',6000);return}
+      try{await dl.save({filename:'نص_'+c.id+'.txt',data:new Blob(['﻿'+text],{type:'text/plain;charset=utf-8'})});toast('تم تجهيز الملف')}
+      catch(err){if(err&&err.code==='declined')return;toast('تعذر حفظ الملف. حاول مرة أخرى.',5000)}
+    })();return}
+  if(a==='txdel'){
+    const c=S.calls.find(x=>x.id===b.dataset.id);if(!c||!c.tx)return;
+    c.tx=null;S.txMsg='';addLog(`مسح نص المكالمة ${c.id}`);render();toast('تم مسح النص');return}
+  if(a==='qsave'){
+    const c=S.calls.find(x=>x.id===b.dataset.id);
+    const errs=S.types.filter(t=>(S.qd.counts[t.id]||0)>0).map(t=>({id:t.id,name:t.name,points:t.points,count:S.qd.counts[t.id]}));
+    if(!errs.length){toast('اختر نوع خطأ واحدًا على الأقل، أو علّم «لا يوجد خطأ»');return}
+    saveQuick(c,errs);S.quick=null;render();toast('تم حفظ الأخطاء');return}
+  if(a==='cdet'){S.openCall=S.openCall===b.dataset.id?null:b.dataset.id;render();return}
+  if(a==='uprow'){S.upTarget=b.dataset.id;document.getElementById('upOne').click();return}
+  if(a==='sample'){if(S.calls.length){toast('توجد مكالمات بالفعل');return}loadSample();render();toast('تم تحميل بيانات تجريبية');return}
+  if(a==='selnew'){S.calls.filter(c=>c.status==='new').forEach(c=>S.sel.add(c.id));render();return}
+  if(a==='assign'){
+    let n=0;S.calls.forEach(c=>{if(S.sel.has(c.id)&&c.status==='new'){c.status='assigned';n++}});
+    S.sel.clear();addLog(`تحديد ${n} مكالمة للمراجعة`);render();toast(`تم تحديد ${n} مكالمة للمراجعة`);return}
+  if(a==='toggle'){S.open=S.open===b.dataset.id?null:b.dataset.id;
+    if(S.view==='results')document.getElementById('resBox').innerHTML=resultsTable(evalsFiltered(true),true);else render();return}
+  if(a==='recalc'){
+    Object.values(S.evals).forEach(ev=>{ev.errors.forEach(x=>{const t=S.types.find(t=>t.id===x.id);if(t){x.points=t.points;x.name=t.name}});
+      ev.score=Math.max(0,100-ev.errors.reduce((s,x)=>s+x.points*x.count,0))});
+    addLog('إعادة احتساب الدرجات السابقة بالقيم الحالية للأخطاء');render();toast('تمت إعادة احتساب الدرجات');return}
+  if(a==='startfirst'){const p=pendingCalls();S.cur=p[0].id;S.draft={counts:{},notes:''};S.view='eval';render();return}
+  if(a==='evalcall'){const cc=S.calls.find(x=>x.id===b.dataset.id);if(cc&&cc.status!=='assigned')cc.status='assigned';S.cur=b.dataset.id;S.draft={counts:{},notes:''};S.view='eval';render();return}
+  if(a==='prev'||a==='next'){
+    const p=pendingCalls();const i=p.findIndex(x=>x.id===S.cur);const j=a==='next'?i+1:i-1;
+    if(p[j]){S.cur=p[j].id;S.draft={counts:{},notes:''};render()}return}
+  if(a==='inc'||a==='dec'){
+    const id=b.dataset.t;const v=(S.draft.counts[id]||0)+(a==='inc'?1:-1);
+    S.draft.counts[id]=Math.max(0,v);document.getElementById('cnt-'+id).textContent=S.draft.counts[id];updateScore();return}
+  if(a==='save'){
+    const c=currentCall();if(!c)return;
+    S.draft.notes=document.getElementById('notes').value;
+    const errs=S.types.filter(t=>(S.draft.counts[t.id]||0)>0).map(t=>({id:t.id,name:t.name,points:t.points,count:S.draft.counts[t.id]}));
+    const score=calcScore();
+    S.evals[c.id]={callId:c.id,agent:c.agent,date:ymd(new Date()),at:Date.now(),by:S.user.name,errors:errs,notes:S.draft.notes.trim(),score};
+    c.status='done';
+    addLog(`حفظ تقييم المكالمة ${c.id} (${c.agent}) بدرجة ${score}`);
+    const p=pendingCalls();S.draft={counts:{},notes:''};
+    if(p.length){S.cur=p[0].id;S.playNext=S.auto}else S.cur=null;
+    render();toast(`تم حفظ التقييم، الدرجة ${score}`);return}
+});
+
+root.addEventListener('change',async e=>{
+  const t=e.target;
+  if(t.dataset.q){quickToggle(t.dataset.q,t.dataset.id,t.checked);return}
+  if(t.hasAttribute('data-txlang')){S.txLang=t.value;return}
+  if(t.hasAttribute('data-txmodel')){S.txModel=t.value;return}
+  if(t.dataset.txa){
+    const c=S.calls.find(x=>x.id===t.dataset.txa);if(!c||(T.run&&T.run.id===c.id))return;
+    const v=t.value.trim();
+    if(!v){if(c.tx){c.tx=null;addLog(`مسح نص المكالمة ${c.id}`);render()}return}
+    c.tx={text:v,at:Date.now(),src:(c.tx&&c.tx.src)||'manual'};addLog(`تعديل نص المكالمة ${c.id}`);toast('تم حفظ النص');return}
+  if(t.dataset.txfile){
+    const f=t.files[0],c=S.calls.find(x=>x.id===t.dataset.txfile);t.value='';
+    if(!f||!c)return;
+    try{
+      let s=await f.text();if(/\.(srt|vtt)$/i.test(f.name))s=cleanSubtitle(s);s=s.trim();
+      if(!s){toast('الملف فارغ.');return}
+      c.tx={text:s,at:Date.now(),src:'import'};S.txMsg='';addLog(`استيراد نص للمكالمة ${c.id} من «${f.name}»`);render();toast('تم استيراد النص');
+    }catch(err){toast('تعذر قراءة الملف النصي.')}
+    return}
+  if(t.dataset.up){
+    const f=t.files[0],c=S.calls.find(x=>x.id===t.dataset.up);
+    if(f&&c){attachAudio(c,f);if(!c.file)c.file=f.name;const ph=phoneFromName(f.name);if(!c.customer&&ph)c.customer=ph;const cd=dateFromFile(f);if(!c.date&&cd)c.date=cd;if(!c.direction)c.direction=dirFromName(f.name);if(playingId===c.id){player.pause();playingId=null}c._probed=false;probeDuration(c);addLog(`رفع تسجيل للمكالمة ${c.id}`);S.playNext=false;S.msg=`تم رفع التسجيل «${f.name}» للمكالمة ${c.id}`;render();toast('تم رفع التسجيل وربطه بالمكالمة')}
+    t.value='';return}
+  if(t.dataset.cd){const c=S.calls.find(x=>x.id===t.dataset.cd);c.date=t.value;addLog(`تعديل تاريخ المكالمة ${c.id} إلى ${t.value||'فارغ'}`);toast('تم تعديل تاريخ المكالمة');return}
+  if(t.dataset.cc){const c=S.calls.find(x=>x.id===t.dataset.cc);c.customer=t.value.trim();addLog(`تعديل رقم العميل للمكالمة ${c.id}`);toast('تم تعديل رقم العميل');return}
+  if(t.dataset.cdir){const c=S.calls.find(x=>x.id===t.dataset.cdir);c.direction=t.value;addLog(`تغيير نوع المكالمة ${c.id} إلى ${t.value}`);toast('تم تعديل نوع المكالمة');return}
+  if(t.dataset.ca){
+    const c=S.calls.find(x=>x.id===t.dataset.ca);c.agent=t.value.trim();
+    if(S.evals[c.id])S.evals[c.id].agent=c.agent;
+    addLog(`تعديل اسم الموظف للمكالمة ${c.id} إلى «${c.agent}»`);toast('تم تعديل اسم الموظف');return}
+  if(t.dataset.sel){t.checked?S.sel.add(t.dataset.sel):S.sel.delete(t.dataset.sel);render();return}
+  if(t.hasAttribute('data-sf')){S.statusFilter=t.value;render();return}
+  if(t.dataset.f&&t.dataset.f!=='q'){S.f[t.dataset.f]=t.value;render();return}
+  if(t.dataset.tn){const x=S.types.find(y=>y.id===t.dataset.tn);addLog(`تعديل اسم خطأ من «${x.name}» إلى «${t.value}»`);x.name=t.value;toast('تم التعديل');return}
+  if(t.dataset.tp){const x=S.types.find(y=>y.id===t.dataset.tp);const v=Math.max(0,Number(t.value)||0);addLog(`تعديل قيمة الخطأ «${x.name}» من ${x.points} إلى ${v}`);x.points=v;toast('تم تعديل القيمة');return}
+  if(t.dataset.ta){const x=S.types.find(y=>y.id===t.dataset.ta);x.active=t.checked;addLog(`${t.checked?'تفعيل':'إيقاف'} الخطأ «${x.name}»`);return}
+  if(t.id==='autoNext'){S.auto=t.checked;return}
+  if(t.id==='xl'&&t.files[0]){await importExcel(t.files[0]);t.value='';return}
+  if(t.id==='aud'&&t.files.length){linkAudio([...t.files]);t.value='';return}
+  if(t.id==='dirIn'&&t.files.length){const a=[...t.files].filter(isAudio);t.value='';if(!a.length){toast('لا توجد ملفات صوتية داخل هذا المجلد',5000);return}linkAudio(a);return}
+  if(t.id==='zipIn'&&t.files[0]){const f=t.files[0];t.value='';await openArchive(f);return}
+  if(t.id==='linkOne'&&t.files[0]){
+    const c=currentCall();attachAudio(c,t.files[0]);c.file=c.file||t.files[0].name;
+    addLog(`ربط تسجيل بالمكالمة ${c.id}`);S.playNext=false;render();toast('تم ربط التسجيل');return}
+});
+root.addEventListener('input',e=>{
+  const t=e.target;
+  if(t.dataset.f==='q'){S.f.q=t.value;document.getElementById('resBox').innerHTML=resultsTable(evalsFiltered(true),true)}
+  if(t.id==='notes')S.draft.notes=t.value;
+});
+
+document.getElementById('upOne').addEventListener('change',e=>{
+  const f=e.target.files[0];const c=S.calls.find(x=>x.id===S.upTarget);
+  if(f&&c){attachAudio(c,f);if(!c.file)c.file=f.name;addLog(`رفع تسجيل للمكالمة ${c.id}`);S.playNext=false;render();toast('تم رفع التسجيل وربطه بالمكالمة')}
+  e.target.value='';
+});
+
+/* ---------- تصدير إلى Excel ---------- */
+async function exportXlsx(scope){
+  if(typeof XLSX==='undefined'){toast('تعذر تحميل مكتبة Excel. تحقق من الاتصال بالإنترنت وحاول مرة أخرى.',5000);return}
+  const evs=scope==='results'?evalsFiltered(true):Object.values(S.evals);
+  const calls=scope==='results'?S.calls.filter(c=>evs.some(e=>e.callId===c.id)):S.calls;
+  if(!calls.length){toast('لا توجد بيانات للتصدير',4000);return}
+  let dl=null;
+  try{dl=DL}catch(e){dl=null}
+  if(!dl){toast('تعذر التصدير.',7000);return}
+  const H1=['رقم المكالمة','الموظف','العميل','التاريخ','النوع','المدة','ملف التسجيل','الحالة','الدرجة','عدد الأخطاء','تفاصيل الأخطاء','الملاحظات','تاريخ التقييم','قيّمها','نص المكالمة'];
+  const rows1=calls.map(c=>{const e=S.evals[c.id];return{
+    'رقم المكالمة':c.id,'الموظف':c.agent,'العميل':c.customer,'التاريخ':c.date,'النوع':c.direction,'المدة':c.duration,'ملف التسجيل':c.file,'الحالة':statusPill(c.status)[0],
+    'الدرجة':e?e.score:'','عدد الأخطاء':e?e.errors.reduce((a,x)=>a+x.count,0):'','تفاصيل الأخطاء':e?e.errors.map(x=>x.name+' × '+x.count).join('، '):'',
+    'الملاحظات':e?e.notes:'','تاريخ التقييم':e?e.date:'','قيّمها':e?e.by:'','نص المكالمة':c.tx&&c.tx.text?c.tx.text.slice(0,32000):''}});
+  const H2=['رقم المكالمة','الموظف','تاريخ التقييم','نوع الخطأ','العدد','النقاط المخصومة'];
+  const rows2=[];
+  evs.forEach(e=>e.errors.forEach(x=>rows2.push({'رقم المكالمة':e.callId,'الموظف':e.agent,'تاريخ التقييم':e.date,'نوع الخطأ':x.name,'العدد':x.count,'النقاط المخصومة':x.points*x.count})));
+  const ws1=XLSX.utils.json_to_sheet(rows1,{header:H1});
+  const ws2=XLSX.utils.json_to_sheet(rows2,{header:H2});
+  ws1['!cols']=[14,18,16,12,8,9,22,14,8,10,40,36,14,12,60].map(w=>({wch:w}));
+  ws2['!cols']=[14,18,14,36,8,14].map(w=>({wch:w}));
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws1,'المكالمات');
+  XLSX.utils.book_append_sheet(wb,ws2,'الأخطاء');
+  wb.Workbook={Views:[{RTL:true}]};
+  try{
+    const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    await dl.save({filename:'memoQ_'+ymd(new Date())+'.xlsx',data:new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})});
+    addLog(`تصدير ${calls.length} مكالمة إلى Excel`);toast('تم تجهيز الملف');
+  }catch(err){
+    if(err&&err.code==='declined')return;
+    toast('تعذر حفظ الملف. حاول مرة أخرى.',5000);
+  }
+}
+
+/* ---------- استيراد Excel وربط التسجيلات ---------- */
+const ALIAS={
+  id:['رقم المكالمة','رقم','المكالمة','id','call id','callid','call_id'],
+  agent:['الموظف','اسم الموظف','موظف','agent','employee'],
+  customer:['العميل','رقم العميل','customer','phone','الهاتف'],
+  date:['التاريخ','تاريخ المكالمة','date'],
+  duration:['المدة','مدة المكالمة','duration'],
+  file:['ملف التسجيل','اسم الملف','التسجيل','file','recording','filename'],
+  dir:['النوع','نوع المكالمة','الاتجاه','direction','type']
+};
+function pick(row,key){
+  const keys=Object.keys(row);
+  for(const a of ALIAS[key]){const k=keys.find(x=>String(x).trim().toLowerCase()===a);if(k!==undefined&&row[k]!=='')return row[k]}
+  return'';
+}
+function toDate(v){
+  if(v instanceof Date&&!isNaN(v)){const d=new Date(v.getTime()+12*3600*1000);return d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1)+'-'+pad(d.getUTCDate())}
+  const t=String(v||'').trim();const m=t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  return m?m[3]+'-'+pad(m[2])+'-'+pad(m[1]):t
+}
+function toDur(v){
+  if(typeof v==='number'){const s=v<1?Math.round(v*86400):Math.round(v);return pad(Math.floor(s/60))+':'+pad(s%60)}
+  if(v instanceof Date&&!isNaN(v)){const d=new Date(v.getTime());return pad(d.getUTCHours()*60+d.getUTCMinutes())+':'+pad(d.getUTCSeconds())}
+  return String(v||'').trim()
+}
+async function importExcel(file){
+  if(typeof XLSX==='undefined'){toast('تعذر تحميل مكتبة قراءة Excel. تحقق من الاتصال بالإنترنت وحاول مرة أخرى.');return}
+  try{
+    const wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+    let added=0,skipped=0,noAgent=0;
+    const have=new Set(S.calls.map(c=>c.id));
+    let seq=S.calls.length+1001;
+    rows.forEach(r=>{
+      const agent=String(pick(r,'agent')).trim();
+      if(!['id','agent','customer','date','file'].some(k=>String(pick(r,k)).trim())){noAgent++;return}
+      let id=String(pick(r,'id')).trim();
+      if(!id){while(have.has('MQ-'+seq))seq++;id='MQ-'+seq}
+      if(have.has(id)){skipped++;return}
+      have.add(id);
+      S.calls.push({id,agent,customer:String(pick(r,'customer')).trim(),date:toDate(pick(r,'date')),duration:toDur(pick(r,'duration')),file:String(pick(r,'file')).trim(),direction:toDir(pick(r,'dir'),String(pick(r,'file')).trim()||id),audioUrl:'',status:'new'});
+      added++;
+    });
+    addLog(`استيراد ملف Excel «${file.name}»: ${added} مكالمة جديدة`);
+    S.msg=`تم استيراد ${added} مكالمة من «${file.name}»`+(skipped?`، وتخطي ${skipped} مكررة`:'')+(noAgent?`، و${noAgent} فارغة`:'');
+    render();
+    toast(`تم استيراد ${added} مكالمة`+(skipped?`، وتخطي ${skipped} مكررة`:'')+(noAgent?`، و${noAgent} فارغة`:''));
+  }catch(err){toast('تعذر قراءة الملف. تأكد أنه ملف Excel أو CSV سليم.')}
+}
+const AUDIO_EXT={mp3:'audio/mpeg',wav:'audio/wav',m4a:'audio/mp4',ogg:'audio/ogg',oga:'audio/ogg',opus:'audio/ogg',aac:'audio/aac',flac:'audio/flac',wma:'audio/x-ms-wma',amr:'audio/amr',mp4:'audio/mp4',webm:'audio/webm'};
+const extOf=n=>(String(n).split('.').pop()||'').toLowerCase();
+const isAudio=f=>(f.type&&f.type.startsWith('audio/'))||!!AUDIO_EXT[extOf(f.name)];
+async function openArchive(file){
+  const ext=extOf(file.name);
+  if(ext==='rar'){toast('لا يمكن فتح ملفات RAR داخل المتصفح. فك الضغط على جهازك (WinRAR مثلًا) ثم اختر المجلد بزر «اختيار مجلد تسجيلات»، أو أعد ضغطها بصيغة ZIP.',10000);return}
+  if(typeof JSZip==='undefined'){toast('تعذر تحميل مكتبة فتح الملفات المضغوطة. تحقق من الاتصال بالإنترنت وحاول مرة أخرى.',5000);return}
+  try{
+    toast('جاري فتح الملف المضغوط، قد يستغرق ذلك وقتًا مع الملفات الكبيرة',60000);
+    const zip=await JSZip.loadAsync(file);
+    const entries=Object.values(zip.files).filter(z=>!z.dir&&!/(^|\/)(__MACOSX|\.)/.test(z.name)&&AUDIO_EXT[extOf(z.name)]);
+    if(!entries.length){toast('لم أجد ملفات صوتية داخل الملف المضغوط',6000);return}
+    const out=[];
+    for(const z of entries){
+      const base=z.name.split('/').pop();
+      const blob=await z.async('blob');
+      out.push(new File([blob],base,{type:AUDIO_EXT[extOf(base)]}));
+    }
+    linkAudio(out);
+  }catch(err){toast('تعذر فتح الملف المضغوط. تأكد أنه ملف ZIP سليم.',6000)}
+}
+function dateFromFile(f){
+  const m=String(f.name).match(/(?<!\d)(20\d{2})[-_.]?(0[1-9]|1[0-2])[-_.]?(0[1-9]|[12]\d|3[01])(?:(?!\d)|(?=\d{4,6}(?!\d)))/);
+  if(m)return m[1]+'-'+m[2]+'-'+m[3];
+  return f.lastModified?ymd(new Date(f.lastModified)):'';
+}
+const dirFromName=n=>String(n).includes('6400')?'وارد':'صادر';
+function toDir(v,name){const t=String(v||'').trim().toLowerCase();if(t==='وارد'||t==='in'||t==='inbound')return'وارد';if(t==='صادر'||t==='out'||t==='outbound')return'صادر';return dirFromName(name)}
+function phoneFromName(n){
+  const m=String(n).match(/(?<!\d)(?:(?:\+|00)?20)?(0?1[0125]\d{8})(?!\d)/);
+  if(!m)return'';
+  return m[1].startsWith('0')?m[1]:'0'+m[1];
+}
+function linkAudio(files){
+  const stem=n=>String(n).replace(/\.[^.]+$/,'').trim().toLowerCase();
+  let linked=0,created=0,phones=0;
+  files.forEach(f=>{
+    const sm=stem(f.name);
+    const c=S.calls.find(c=>stem(c.file)===sm||String(c.id).toLowerCase()===sm);
+    const url=URL.createObjectURL(f);
+    const ph=phoneFromName(f.name),cd=dateFromFile(f),dr=dirFromName(f.name);
+    if(c){if(c.audioUrl){try{URL.revokeObjectURL(c.audioUrl)}catch(e){}}c.audioUrl=url;c._blob=f;c._blobSaved=false;if(!c.file)c.file=f.name;if(!c.customer&&ph){c.customer=ph;phones++}if(!c.date&&cd)c.date=cd;if(!c.direction)c.direction=dr;linked++}
+    else{
+      let id=f.name.replace(/\.[^.]+$/,'').trim()||('MQ-'+(1001+S.calls.length));
+      while(S.calls.some(x=>x.id===id))id+='_';
+      S.calls.push({id,agent:'',customer:ph,date:cd,duration:'',file:f.name,direction:dr,audioUrl:url,_blob:f,_blobSaved:false,status:'new'});created++;if(ph)phones++;
+    }
+  });
+  const msg=`تم ربط ${linked} تسجيل بمكالمات موجودة، وإنشاء ${created} مكالمة جديدة من ملفات لم تطابق أي مكالمة`+(phones?`. واستُخرج ${phones} رقم عميل من أسماء الملفات.`:'. لم أجد رقم عميل في أسماء الملفات.');
+  S.msg=msg;addLog(`رفع ${files.length} ملف صوتي: ${msg}`);S.calls.forEach(probeDuration);
+  render();toast(msg,6000);
+}
+
+initStore();
+</script>
+
+</body></html>
